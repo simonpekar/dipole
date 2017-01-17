@@ -1,25 +1,4 @@
-/* constants */
-const Double_t zeta_3 = 1.2020569031595942854;
-
-/* general parameters */
-const Double_t delta = 0.001; /* UV cutoff (between 10^-6 and 10^-2) */
-const Double_t y_max = 2.; /* maximum rapidity in evolution (typ 3.) */
-const UInt_t N = 1000; /* number of independant events (typ 10000) */
-const Double_t precision = 1./sqrt(N); /* for integration */
-
-/* IR cutoff parameters */
-const Bool_t IR = false; /* activate IR cutoff */
-const Double_t R = 2.; /* IR cutoff for the Gaussian form (typ 2.) */
-
-/* fluctuations calculation parameters */
-const Bool_t compute_fluctuations = true; /* compute fluctutations */
-const Double_t r_s = 0.005; /* minimum size to consider (~ delta) */
-
-/* common ancestors parameters */
-const Bool_t compute_ancestors = false; /* compute common ancestors ? */
-const UInt_t k_leaves = 2; /* compute the common ancestor of k random leaves (typ 2-10) */
-const UInt_t m_factor = 5; /* consider only events with a multiplicity greater than mfactor * mean multiplicity (typ 2) */
-
+#include "constants.h"
 
 class Dipole {
 public:
@@ -188,31 +167,7 @@ Dipole * Dipole::split() {
     
 }
 
-void BinLogX(TH1 * h)
-{
-    
-    TAxis *axis = h->GetXaxis();
-    int bins = axis->GetNbins();
-    
-    Axis_t from = axis->GetXmin();
-    Axis_t to = axis->GetXmax();
-    Axis_t width = (to - from) / bins;
-    Axis_t *new_bins = new Axis_t[bins + 1];
-    
-    for (int i = 0; i <= bins; i++) {
-        new_bins[i] = TMath::Power(10, from + i * width);
-    }
-    
-    axis->Set(bins, new_bins);
-    delete new_bins;
-    
-}
-
-TF1 * fit_Bessel = new TF1("fitBessel", "[0]*TMath::BesselI0(2.*sqrt(-2.*[1]*log(x)))");
-TF1 * P_n = new TF1("P_n", "1./x * [3]*[2]/([0]*[0]) * exp(-log(x)*log(x)/(4*[1]))");
-TF1 * n_bar = new TF1("n_bar", "1./x * exp([0]*4.*log(2.)) * exp(-log(x*x)*log(x*x)/([0]*56.*[1])) * 1./sqrt([0]*14.*TMath::Pi()*[1])");
-
-void buildTree() {
+void build() {
     
     Dipole * base = new Dipole(0.,0.,1.,0.,0.);
     
@@ -221,41 +176,17 @@ void buildTree() {
     Double_t size;
     
     UInt_t from, to;
-    
     Bool_t complete;
+    
     Dipole * p, * d;
     
-    UInt_t random_leaves[k_leaves];
-    UInt_t r;
-    
-    UInt_t num;
-    
-    n_bar->FixParameter(0, y_max);
-    n_bar->FixParameter(1, zeta_3);
-    
-    fit_Bessel->SetParameter(0,N);
-    fit_Bessel->FixParameter(1,y_max);
-    
-    P_n->FixParameter(0, r_s);
-    P_n->FixParameter(1, y_max);
-    P_n->FixParameter(2, N);
-    
-    //TH1 * h_size = new TH1D("h_size", "Size of leaves", 10000, 0, 2);
-    //TH1 * h_rap = new TH1D("h_rap", "Rapidity of leaves", 10000, 0, y_max);
-    TH1 * h_anc = new TH1D("h_anc", TString::Format("Size of ancestors (N = %d, y_max = %.12g, delta = %.12g, k = %d)", N, y_max, delta, k_leaves), 50, -2, 2);
-    TH1 * h_fluct = new TH1I("h_fluct", TString::Format("Fluctuations of multiplicity (N = %d, y_max = %.12g, delta = %.12g)", N, y_max, delta), 20, 0, 10*n_bar->Eval(delta));
-    
-    //BinLogX(h_anc);
-    
-    TCanvas *c1 = new TCanvas("Modèle des dipoles");
-    
-    //TFile f("tree.root","recreate");
+    TFile f("tree.root","recreate");
     
     for (UInt_t n = 0; n < N; n++) {
         
         printf("%.12g %%\n",100.*n/N);
         
-        TTree * t = new TTree("t","Binary tree of evolution");
+        TTree * t = new TTree(TString::Format("t%d",n),"evolution");
         t->Branch("px",&px,"px/D");
         t->Branch("py",&py,"py/D");
         t->Branch("vx",&vx,"vx/D");
@@ -263,14 +194,6 @@ void buildTree() {
         t->Branch("size",&size,"size/D");
         t->Branch("rapidity",&y,"rapidity/D");
         t->Branch("ancestor",&ancestor,"ancestor/i");
-        
-        t->SetBranchAddress("px",&px);
-        t->SetBranchAddress("py",&py);
-        t->SetBranchAddress("vx",&vx);
-        t->SetBranchAddress("vy",&vy);
-        t->SetBranchAddress("size",&size);
-        t->SetBranchAddress("rapidity",&y);
-        t->SetBranchAddress("ancestor",&ancestor);
         
         px = base->px;
         py = base->py;
@@ -282,7 +205,7 @@ void buildTree() {
         
         t->Fill();
         
-        TTree * l = new TTree("l", "Tree containing leaves");
+        TTree * l = new TTree(TString::Format("l%d",n), "leaves");
         l->Branch("px",&px,"px/D");
         l->Branch("py",&py,"py/D");
         l->Branch("vx",&vx,"vx/D");
@@ -313,8 +236,6 @@ void buildTree() {
                 if (d->y > y_max) {
                     
                     l->Fill();
-                    //h_size->Fill(size);
-                    //h_rap->Fill(y);
                     
                 } else {
                     
@@ -344,85 +265,12 @@ void buildTree() {
             
         }
         
-        if (compute_ancestors) {
-            
-            if (l->GetEntries() >= k_leaves && l->GetEntries() >= m_factor*n_bar->Eval(delta)) {
-                
-                for(UInt_t k = 0; k < k_leaves; k++) {
-                    
-                    random_leaves[k] = l->GetEntries();
-                    
-                    do {
-                        
-                        r = (int)l->GetEntries()*(1-sim->Rndm());
-                        
-                    } while (std::find(random_leaves, random_leaves+k, r) != random_leaves+k);
-                    
-                    random_leaves[k] = r;
-                }
-                
-                for (UInt_t k = 0; k < k_leaves - 1; k++) {
-                    
-                    while (random_leaves[k] != random_leaves[k+1]) {
-                        
-                        if (random_leaves[k] < random_leaves[k+1]) {
-                            
-                            t->GetEvent(random_leaves[k+1]);
-                            random_leaves[k+1] = ancestor;
-                            
-                        } else {
-                            
-                            t->GetEvent(random_leaves[k]);
-                            random_leaves[k] = ancestor;
-                            
-                        }
-                        
-                    }
-                    
-                }
-                
-                h_anc->Fill(size);
-                
-            }
-            
-        }
+        t->Write();
+        t->Delete();
         
-        if (compute_fluctuations) {
-            
-            num = l->GetEntries(TString::Format("size >= %.12g", r_s));
-            h_fluct->Fill(num);
-            
-        }
-        
-        //t->Write();
-        //l->Write();
+        l->Write();
+        l->Delete();
         
     }
-    
-    
-    //c1->Divide(2,2);
-    
-    /*
-    //c1->cd(1);
-    //gPad->SetLogx();
-    gPad->SetLogy();
-    //h_size = h_size->GetCumulative(kFALSE);
-    h_size->Draw("E1");
-    //gStyle->SetOptFit(1011);
-    //h_size->Fit("fitBessel", "", "", delta, 0.1);
-    
-    //c1->cd(3);
-    h_anc->GetXaxis()->SetTitle("Radius r");
-    h_anc->GetYaxis()->SetTitle("Number of ancestors of radius r");
-    gPad->SetLogx();
-    //gPad->SetLogy();
-    h_anc->Draw();
-    //ancestors->Draw("size",NULL);
-    */
-    
-    //c1->cd(4);
-    gPad->SetLogy();
-    h_fluct->Draw("E1");
-    h_fluct->Fit("P_n", "", "", n_bar->Eval(delta), 10*n_bar->Eval(delta));
     
 }
