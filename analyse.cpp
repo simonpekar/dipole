@@ -15,6 +15,7 @@
 #include <iostream>
 #include <fstream>
 #include <TSystem.h>
+#include <TStyle.h>
 
 TRandom * sim = new TRandom;
 

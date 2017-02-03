@@ -14,6 +14,8 @@
 #include <fstream>
 #include <TSystem.h>
 
+using namespace std;
+
 class Dipole {
 public:
     Double_t px;
@@ -34,7 +36,7 @@ Double_t lambda(Double_t x01);
 Double_t getLambda(Double_t x01);
 
 ROOT::Math::Interpolator interpolator;
-std::map<Double_t, Double_t> lookup_table;
+map<Double_t, Double_t> lookup_table;
 Double_t x01_min, x01_max;
 
 
@@ -96,7 +98,7 @@ Double_t l1(Double_t *x, Double_t *parm) {
             break;
             
         default:
-            printf("unknown cut-off\n");
+            cerr << "unknown cut-off" << endl;
             break;
     }
     
@@ -260,7 +262,7 @@ void writeLookupTable()
     Double_t x01 = 0.0;
     Double_t step = 0.000000000001;
     Double_t l;
-    std::ofstream lut("table");
+    ofstream lut("table");
     if (lut.is_open())
     {
         lut << delta << " " << n << "\n";
@@ -278,18 +280,18 @@ void writeLookupTable()
 
 void loadLookupTable()
 {
-    std::cerr << "Reading lookup table..." << std::endl;
-    std::ifstream lut("table");
+    cerr << "Reading lookup table..." << endl;
+    ifstream lut("table");
     Double_t rho;
     int n;
-    std::vector<Double_t> x01, l;
+    vector<Double_t> x01, l;
     if (lut.is_open())
     {
         lut >> rho >> n;
         Double_t a, b;
         while(lut >> a >> b)
         {
-            lookup_table.insert(std::pair<Double_t, Double_t>(a, b));
+            lookup_table.insert(pair<Double_t, Double_t>(a, b));
             x01.push_back(a);
             l.push_back(b);
         }
@@ -298,22 +300,22 @@ void loadLookupTable()
     interpolator.SetData(x01, l);
     x01_min = x01.front();
     x01_max = x01.back();
-    std::cerr << "\033[1;32m Done. \033[0m" << std::endl;
+    cerr << "\033[1;32m Done. \033[0m" << endl;
 }
 
 void printLookupTable()
 {
-    std::cerr << "Printing lookup table..." << std::endl;
+    cerr << "Printing lookup table..." << endl;
     for (auto const& x: lookup_table)
     {
-        std::cerr << x.first << " " << x.second << std::endl;
+        cerr << x.first << " " << x.second << endl;
     }
-    std::cerr << "done." << std::endl;
+    cerr << "done." << endl;
 }
 
 void setInterpolatorData()
 {
-    std::vector<Double_t> x01, l;
+    vector<Double_t> x01, l;
     for (auto const& x: lookup_table)
     {
         x01.push_back(x.first);
@@ -331,14 +333,14 @@ Double_t getLambda(Double_t x01)
     // Interpolate
     if (x01_min > x01 || x01 > x01_max)
     {
-        std::cerr << "\033[1;31mWarning : x01 out of lookup table range.\033[0m \n Adding entry for " << x01 << std::endl;
+        cerr << "\033[1;31mWarning : x01 out of lookup table range.\033[0m \n Adding entry for " << x01 << endl;
         // Add new points
-        lookup_table.insert(std::pair<Double_t, Double_t>(x01, lambda(x01)));
+        lookup_table.insert(pair<Double_t, Double_t>(x01, lambda(x01)));
         x01_min = TMath::Min(x01_min, x01);
         x01_max = TMath::Max(x01_max, x01);
         setInterpolatorData();
     }
-    //std::cerr << delta << " " << x01 << " " << interpolator.Eval(x01) << std::endl;
+    //cerr << delta << " " << x01 << " " << interpolator.Eval(x01) << endl;
     return interpolator.Eval(x01);
 }
 
@@ -381,14 +383,15 @@ void build() {
             break;
             
         default:
-            printf("unknown cut-off\n");
+            cerr << "unknown cut-off" << endl;
             break;
             
     }
     
     for (UInt_t n = 0; n < N; n++) {
         
-        printf("%.12g %%\n",100.*n/N);
+        
+        cerr << 100.*n/N << "%" << endl;
         
         TTree * t = new TTree(TString::Format("t%d",n),"evolution");
         t->Branch("px",&px,"px/D");
