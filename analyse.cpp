@@ -169,6 +169,8 @@ void analyse() {
                 
             }
             
+            delete t;
+            
         }
         
         if (compute_fluctuations) {
@@ -178,7 +180,6 @@ void analyse() {
             
         }
         
-        delete t;
         delete l;
         
     }
