@@ -1,5 +1,19 @@
 #include "constants.h"
 
+#include <Math/Interpolator.h>
+#include <TMath.h>
+#include <TF1.h>
+#include <TF2.h>
+#include <TF12.h>
+#include <TRandom.h>
+#include <TApplication.h>
+#include <TFile.h>
+#include <TTree.h>
+#include <TString.h>
+#include <iostream>
+#include <fstream>
+#include <TSystem.h>
+
 class Dipole {
 public:
     Double_t px;
@@ -11,60 +25,106 @@ public:
     Dipole(Double_t px, Double_t py, Double_t vx, Double_t vy, Double_t y);
     ~Dipole();
     
+    void invertWithRespectTo(Dipole * p);
     Dipole * split();
-    Dipole * invertWithRespectTo(Dipole * p);
     Double_t size();
-    Double_t lambda();
-    
-private:
-    static TF1 * f1;
-    static TF1 * f2;
-    static TF1 * g;
-    static TF1 * t1;
-    static TF1 * t2;
-    static TF1 * r;
-    static TF2 * l;
-    static Double_t l1(Double_t *x,Double_t *parm);
-    static TF1 * lr;
 };
+
+Double_t lambda(Double_t x01);
+Double_t getLambda(Double_t x01);
+
+ROOT::Math::Interpolator interpolator;
+std::map<Double_t, Double_t> lookup_table;
+Double_t x01_min, x01_max;
+
+
+Dipole::~Dipole(void) { }
 
 /* random generator in )0,1) */
 TRandom * sim = new TRandom;
 
 /* generating function for the creation of leaves (r < 1/2) */
-TF1 * Dipole::f1 = new TF1("f(r) pour r<=1/2","TMath::Pi()/(x*(1.-x**2))");
+TF1 * f1 = new TF1("f(r) pour r<=1/2","TMath::Pi()/(x*(1.-x**2))");
 
 /* generating function for the creation of leaves (r >= 1/2) */
-TF1 * Dipole::f2 = new TF1("f(r) pour r>1/2","2./(x*abs(1.-x**2))*atan(abs(1.-x)/(1.+x)*sqrt((x+.5)/(x-.5)))");
+TF1 * f2 = new TF1("f(r) pour r>1/2","2./(x*abs(1.-x**2))*atan(abs(1.-x)/(1.+x)*sqrt((x+.5)/(x-.5)))");
 
 /* rejecting function */
-TF1 * Dipole::g = new TF1("g(r)","5.*TMath::Pi()/(3.*x*(1.+x**2))");
+TF1 * g = new TF1("g(r)","5.*TMath::Pi()/(3.*x*(1.+x**2))");
 
 /* generating function for the angle of leaves (r < 1/2) */
-TF1 * Dipole::t1 = new TF1("theta(r) pour r<=1/2","2.*atan((1.-[0])/(1.+[0])*1./(tan(x*TMath::Pi()/2.)))");
+TF1 * t1 = new TF1("theta(r) pour r<=1/2","2.*atan((1.-[0])/(1.+[0])*1./(tan(x*TMath::Pi()/2.)))");
 
 /* generating function for the angle of leaves (r >= 1/2) */
-TF1 * Dipole::t2 = new TF1("theta(r) pour r>1/2","2.*atan(abs(1.-[0])/(1.+[0])*1./(tan(x*atan(abs(1.-[0])/(1.+[0])*sqrt(([0]+.5)/([0]-.5))))))");
+TF1 * t2 = new TF1("theta(r) pour r>1/2","2.*atan(abs(1.-[0])/(1.+[0])*1./(tan(x*atan(abs(1.-[0])/(1.+[0])*sqrt(([0]+.5)/([0]-.5))))))");
 
 /* generating function for the radius of the leaves */
-TF1 * Dipole::r = new TF1("r(U(0,1))","1./sqrt(pow((1.+1./[0]**2),1.-x)-1.)");
+TF1 * r = new TF1("r(U(0,1))","1./sqrt(pow((1.+1./[0]**2),1.-x)-1.)");
 
-/* to-integrate lambda function */
-TF2 * Dipole::l = new TF2("lambda","exp(-(x*x + 1. + x*x - 2.*x*cos(y))/(2.*[0]*[0]))*1./(x*(1.+x*x-2.*x*cos(y)))");
+/* to integrate lambda function */
+TF2 * l = new TF2("lambda","1./(x*(1.+x*x-2.*x*cos(y)))");
 
-Double_t Dipole::l1(Double_t *x, Double_t *parm) {
+/* cut-off types */
+TF2 * rigid = new TF2("rigid", "(x*x + 1. + x*x - 2.*x*cos(y) < 2.*[0]*[0])");                      /* type 1 */
+TF2 * gaussian = new TF2("gaussian","exp(-(x*x + 1. + x*x - 2.*x*cos(y))/(2.*[0]*[0]))");           /* type 2 */
+TF2 * exponential = new TF2("exponential","exp(-(sqrt(x*x + 1. + x*x - 2.*x*cos(y)))/([0]))");      /* type 3 */
+
+
+Double_t l1(Double_t *x, Double_t *parm) {
     
-    l->FixParameter(0,R);
-    TF12 * l12 = new TF12("l12",l,x[0],"y");
-    if (x[0] > .5) return l12->Integral(acos(1./(2.*x[0])),TMath::Pi(),precision);
-    else return l12->Integral(0.,TMath::Pi(),precision);
+    Double_t result;
+    TF2 * mult;
+    
+    switch (IR_type) {
+        case 0:
+            mult = new TF2("mult","lambda");
+            break;
+            
+        case 1:
+            rigid->FixParameter(0,R);
+            mult = new TF2("mult","lambda*rigid");
+            break;
+            
+        case 2:
+            gaussian->FixParameter(0,R);
+            mult = new TF2("mult","lambda*gaussian");
+            break;
+            
+        case 3:
+            exponential->FixParameter(0,R);
+            mult = new TF2("mult","lambda*exponential");
+            break;
+            
+        default:
+            printf("unknown cut-off\n");
+            break;
+    }
+    
+    TF12 * l12 = new TF12("l12",mult,x[0],"y");
+    
+    if (x[0] > .5) result = l12->Integral(acos(1./(2.*x[0])),TMath::Pi());
+    else result = l12->Integral(0.,TMath::Pi(),1.);
+    
+    delete mult;
+    delete l12;
+    
+    return result;
     
 }
 
-TF1 * Dipole::lr = new TF1("lr",l1,0.,TMath::Infinity(),0);
+TF1 * lr = new TF1("lr",l1,0.,TMath::Infinity(),0);
 
-Dipole * Dipole::invertWithRespectTo(Dipole * p) {
-    return new Dipole(this->px+this->vx,this->py+this->vy,p->vx-this->vx,p->vy-this->vy,this->y);
+void Dipole::invertWithRespectTo(Dipole * p) {
+    
+    Double_t px2 = this->px+this->vx;
+    Double_t py2 = this->py+this->vy;
+    Double_t vx2 = p->vx-this->vx;
+    Double_t vy2 = p->vy-this->vy;
+    this->px = px2;
+    this->py = py2;
+    this->vx = vx2;
+    this->vy = vy2;
+    
 }
 
 Dipole::Dipole(Double_t px, Double_t py, Double_t vx, Double_t vy, Double_t y) {
@@ -80,18 +140,6 @@ Dipole::Dipole(Double_t px, Double_t py, Double_t vx, Double_t vy, Double_t y) {
 Double_t Dipole::size() {
     
     return sqrt(vx*vx+vy*vy);
-    
-}
-
-Double_t Dipole::lambda() {
-    
-    if (!IR) {
-        if (delta/this->size() <= .5)
-            return log(1./3.) + log((this->size()*this->size())/(delta*delta) - 1.) + 2./TMath::Pi() * f2->Integral(.5,TMath::Infinity(),precision);
-        else
-            return 2./TMath::Pi() * f2->Integral(delta/this->size(),TMath::Infinity(),precision);
-    }
-    else return 2./TMath::Pi() * lr->Integral(delta/this->size(),TMath::Infinity(),precision);
     
 }
 
@@ -122,8 +170,27 @@ Dipole * Dipole::split() {
                 theta = t2->Eval(1-sim->Rndm());
             }
             
-            if (!IR) gen = true;
-            else if (sim->Rndm() <= exp(-(radius*radius + 1. + radius*radius - 2.*radius*cos(theta))/(2.*R*R))) gen = true;
+            
+            switch (IR_type) {
+                case 0:
+                    gen = true;
+                    break;
+                    
+                case 1:
+                    rigid->FixParameter(0,R);
+                    gen = (rigid->Eval(radius,theta) != 0.);
+                    
+                case 2:
+                    gaussian->FixParameter(0,R);
+                    gen = (sim->Rndm() <= gaussian->Eval(radius,theta));
+                    
+                case 3:
+                    exponential->FixParameter(0,R);
+                    gen = (sim->Rndm() <= exponential->Eval(radius,theta));
+                    
+                default:
+                    break;
+            }
             
             if (gen) {
                 
@@ -153,7 +220,7 @@ Dipole * Dipole::split() {
                         break;
                 }
                 
-                Double_t rapidity = this->y - log(1.-sim->Rndm())/this->lambda();
+                Double_t rapidity = this->y - log(1.-sim->Rndm())/getLambda(delta/this->size());
                 
                 return new Dipole(this->px,this->py,vxd,vyd,rapidity);
                 
@@ -167,7 +234,120 @@ Dipole * Dipole::split() {
     
 }
 
+Double_t lambda(Double_t x01) {
+    
+    Double_t result;
+    
+    if (IR_type == 0) {
+        
+        if (x01 <= .5) result = log(1./3.) + log(1/(x01*x01) - 1.) + 2./TMath::Pi() * f2->Integral(.5,TMath::Infinity());
+        else result = 2./TMath::Pi() * f2->Integral(x01,TMath::Infinity());
+        
+    } else {
+        
+        result = 2./TMath::Pi() * lr->Integral(x01,TMath::Infinity(),0.001);
+        
+    }
+    
+    return result;
+    
+}
+
+void writeLookupTable()
+{
+    int n = 200;
+    
+    Double_t x01 = 0.0;
+    Double_t step = 0.000000000001;
+    Double_t l;
+    std::ofstream lut("table");
+    if (lut.is_open())
+    {
+        lut << delta << " " << n << "\n";
+        for (int i = 1; i <= n; ++i)
+        {
+            if (i%10 == 0) step *= 10. ;
+            x01 += step;
+            l = lambda(x01);
+            lut << x01 << " " << l << "\n";
+        }
+        lut.close();
+    }
+}
+
+
+void loadLookupTable()
+{
+    std::cerr << "Reading lookup table..." << std::endl;
+    std::ifstream lut("table");
+    Double_t rho;
+    int n;
+    std::vector<Double_t> x01, l;
+    if (lut.is_open())
+    {
+        lut >> rho >> n;
+        Double_t a, b;
+        while(lut >> a >> b)
+        {
+            lookup_table.insert(std::pair<Double_t, Double_t>(a, b));
+            x01.push_back(a);
+            l.push_back(b);
+        }
+        lut.close();
+    }
+    interpolator.SetData(x01, l);
+    x01_min = x01.front();
+    x01_max = x01.back();
+    std::cerr << "\033[1;32m Done. \033[0m" << std::endl;
+}
+
+void printLookupTable()
+{
+    std::cerr << "Printing lookup table..." << std::endl;
+    for (auto const& x: lookup_table)
+    {
+        std::cerr << x.first << " " << x.second << std::endl;
+    }
+    std::cerr << "done." << std::endl;
+}
+
+void setInterpolatorData()
+{
+    std::vector<Double_t> x01, l;
+    for (auto const& x: lookup_table)
+    {
+        x01.push_back(x.first);
+        l.push_back(x.second);
+    }
+    interpolator.SetData(x01, l);
+}
+
+Double_t getLambda(Double_t x01)
+{
+    if (lookup_table.size() <= 0)
+    {
+        loadLookupTable();
+    }
+    // Interpolate
+    if (x01_min > x01 || x01 > x01_max)
+    {
+        std::cerr << "\033[1;31mWarning : x01 out of lookup table range.\033[0m \n Adding entry for " << x01 << std::endl;
+        // Add new points
+        lookup_table.insert(std::pair<Double_t, Double_t>(x01, lambda(x01)));
+        x01_min = TMath::Min(x01_min, x01);
+        x01_max = TMath::Max(x01_max, x01);
+        setInterpolatorData();
+    }
+    //std::cerr << delta << " " << x01 << " " << interpolator.Eval(x01) << std::endl;
+    return interpolator.Eval(x01);
+}
+
+
 void build() {
+    
+    writeLookupTable();
+    loadLookupTable();
+    printLookupTable();
     
     Dipole * base = new Dipole(0.,0.,1.,0.,0.);
     
@@ -180,7 +360,31 @@ void build() {
     
     Dipole * p, * d;
     
-    TFile f("tree.root","recreate");
+    TFile * f;
+    
+    switch (IR_type) {
+            
+        case 0:
+            f = new TFile(TString::Format("datasets/y=%.12g, N=%d, UV=%.12g, no IR.root",y_max,N,delta),"recreate");
+            break;
+            
+        case 1:
+            f = new TFile(TString::Format("datasets/y=%.12g, N=%d, UV=%.12g, IR=%.12g rigid.root",y_max,N,delta,R),"recreate");
+            break;
+            
+        case 2:
+            f = new TFile(TString::Format("datasets/y=%.12g, N=%d, UV=%.12g, IR=%.12g gaussian.root",y_max,N,delta,R),"recreate");
+            break;
+            
+        case 3:
+            f = new TFile(TString::Format("datasets/y=%.12g, N=%d, UV=%.12g, IR=%.12g exponential.root",y_max,N,delta,R),"recreate");
+            break;
+            
+        default:
+            printf("unknown cut-off\n");
+            break;
+            
+    }
     
     for (UInt_t n = 0; n < N; n++) {
         
@@ -248,7 +452,7 @@ void build() {
                     ancestor = i;
                     t->Fill();
                     
-                    d = d->invertWithRespectTo(p);
+                    d->invertWithRespectTo(p);
                     
                     px = d->px;
                     py = d->py;
@@ -259,18 +463,20 @@ void build() {
                     
                 }
                 
+                delete p;
+                delete d;
+                
             }
             
             from = to;
             
         }
         
-        t->Write();
-        t->Delete();
-        
+        //t->Write();
         l->Write();
-        l->Delete();
         
     }
+    
+    f->Close();
     
 }
