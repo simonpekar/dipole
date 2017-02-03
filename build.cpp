@@ -280,7 +280,7 @@ void writeLookupTable()
 
 void loadLookupTable()
 {
-    cerr << "Reading lookup table..." << endl;
+    cout << "Reading lookup table..." << endl;
     ifstream lut("table");
     Double_t rho;
     int n;
@@ -300,17 +300,17 @@ void loadLookupTable()
     interpolator.SetData(x01, l);
     x01_min = x01.front();
     x01_max = x01.back();
-    cerr << "\033[1;32m Done. \033[0m" << endl;
+    cout << "\033[1;32m Done. \033[0m" << endl;
 }
 
 void printLookupTable()
 {
-    cerr << "Printing lookup table..." << endl;
+    cout << "Printing lookup table..." << endl;
     for (auto const& x: lookup_table)
     {
-        cerr << x.first << " " << x.second << endl;
+        cout << x.first << " " << x.second << endl;
     }
-    cerr << "done." << endl;
+    cout << "done." << endl;
 }
 
 void setInterpolatorData()
@@ -333,14 +333,14 @@ Double_t getLambda(Double_t x01)
     // Interpolate
     if (x01_min > x01 || x01 > x01_max)
     {
-        cerr << "\033[1;31mWarning : x01 out of lookup table range.\033[0m \n Adding entry for " << x01 << endl;
+        cout << "\033[1;31mWarning : x01 out of lookup table range.\033[0m \n Adding entry for " << x01 << endl;
         // Add new points
         lookup_table.insert(pair<Double_t, Double_t>(x01, lambda(x01)));
         x01_min = TMath::Min(x01_min, x01);
         x01_max = TMath::Max(x01_max, x01);
         setInterpolatorData();
     }
-    //cerr << delta << " " << x01 << " " << interpolator.Eval(x01) << endl;
+    //cout << delta << " " << x01 << " " << interpolator.Eval(x01) << endl;
     return interpolator.Eval(x01);
 }
 
@@ -391,7 +391,7 @@ void build() {
     for (UInt_t n = 0; n < N; n++) {
         
         
-        cerr << 100.*n/N << "%" << endl;
+        cout << 100.*n/N << "%" << endl;
         
         TTree * t = new TTree(TString::Format("t%d",n),"evolution");
         t->Branch("px",&px,"px/D");
