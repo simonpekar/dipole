@@ -95,21 +95,19 @@ void analyse() {
         
         printf("%.12g %%\n",100.*n/N);
         
-        TTree * t;
         TTree * l;
-        
-        f->GetObject(TString::Format("t%d",n),t);
         f->GetObject(TString::Format("l%d",n),l);
-        
-        t->SetBranchAddress("size",&size);
-        t->SetBranchAddress("rapidity",&y);
-        t->SetBranchAddress("ancestor",&ancestor);
-        
         l->SetBranchAddress("size",&size);
         l->SetBranchAddress("rapidity",&y);
         l->SetBranchAddress("ancestor",&ancestor);
         
         if (compute_ancestors) {
+            
+            TTree * t;
+            f->GetObject(TString::Format("t%d",n),t);
+            t->SetBranchAddress("size",&size);
+            t->SetBranchAddress("rapidity",&y);
+            t->SetBranchAddress("ancestor",&ancestor);
             
             if (l->GetEntries() >= k_leaves && l->GetEntries() >= (int)m_factor*n_bar->Eval(delta)) {
                 
