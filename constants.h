@@ -6,7 +6,7 @@ const Double_t zeta_3 = 1.2020569031595942854;
 /* general parameters */
 const Double_t delta = 0.001; /* UV cutoff (between 10^-6 and 10^-2) */
 const Double_t y_max = 3.; /* maximum rapidity in evolution (typ 3.) */
-const UInt_t N = 100; /* number of independant events (typ 10000) */
+const UInt_t N = 100000; /* number of independant events (typ 10000) */
 
 /* IR cutoff parameters */
 const Double_t R = 2.; /* IR cutoff (typ 2.), 0. for no cutoff */
