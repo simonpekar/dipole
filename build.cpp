@@ -18,18 +18,16 @@ using namespace std;
 
 class Dipole {
 public:
-    Bool_t size_only;
     Double_t px;
     Double_t py;
     Double_t vx;
     Double_t vy;
-    Double_t size;
     Double_t y;
     
     Dipole(Double_t px, Double_t py, Double_t vx, Double_t vy, Double_t y);
-    Dipole(Double_t size, Double_t y);
     ~Dipole();
     
+    Double_t size();
     void invertWithRespectTo(Dipole * p);
     Dipole * split();
 };
@@ -133,26 +131,16 @@ void Dipole::invertWithRespectTo(Dipole * p) {
 
 Dipole::Dipole(Double_t px, Double_t py, Double_t vx, Double_t vy, Double_t y) {
     
-    this->size_only = false;
     this->px = px;
     this->py = py;
     this->vx = vx;
     this->vy = vy;
     this->y = y;
-    this->size = sqrt(vx*vx+vy*vy);
-}
-
-Dipole::Dipole(Double_t size, Double_t y) {
-    
-    this->size_only = true;
-    this->y = y;
-    this->size = size;
-    
 }
 
 Dipole * Dipole::split() {
     
-    r->FixParameter(0,delta/this->size);
+    r->FixParameter(0,delta/this->size());
     
     Double_t radius, ratio, theta;
     
@@ -201,41 +189,36 @@ Dipole * Dipole::split() {
             
             if (gen) {
                 
-                radius *= this->size;
+                radius *= this->size();
                 
                 Double_t vxd, vyd;
                 
                 quadrant = (int)4*(1-sim->Rndm());
                 
-                if (!size_only) {
+                Double_t phi = atan2(this->vy,this->vx);
                     
-                    Double_t phi = atan2(this->vy,this->vx);
-                    
-                    switch (quadrant) {
-                        case 3:
-                            vxd = this->vx-radius*cos(phi-theta);
-                            vyd = this->vy-radius*sin(phi-theta);
-                            break;
-                        case 2:
-                            vxd = this->vx-radius*cos(phi+theta);
-                            vyd = this->vy-radius*sin(phi+theta);
-                            break;
-                        case 1:
-                            vxd = radius*cos(phi-theta);
-                            vyd = radius*sin(phi-theta);
-                            break;
-                        default:
-                            vxd = radius*cos(phi+theta);
-                            vyd = radius*sin(phi+theta);
-                            break;
-                    }
-                    
+                switch (quadrant) {
+                    case 3:
+                        vxd = this->vx-radius*cos(phi-theta);
+                        vyd = this->vy-radius*sin(phi-theta);
+                        break;
+                    case 2:
+                        vxd = this->vx-radius*cos(phi+theta);
+                        vyd = this->vy-radius*sin(phi+theta);
+                        break;
+                    case 1:
+                        vxd = radius*cos(phi-theta);
+                        vyd = radius*sin(phi-theta);
+                        break;
+                    default:
+                        vxd = radius*cos(phi+theta);
+                        vyd = radius*sin(phi+theta);
+                        break;
                 }
                 
-                Double_t rapidity = this->y - log(1.-sim->Rndm())/getLambda(delta/this->size);
+                Double_t rapidity = this->y - log(1.-sim->Rndm())/getLambda(delta/this->size());
                 
-                if (size_only) return new Dipole(radius,rapidity);
-                else return new Dipole(this->px,this->py,vxd,vyd,rapidity);
+                return new Dipole(this->px,this->py,vxd,vyd,rapidity);
                 
                 
             }
@@ -363,10 +346,9 @@ void build() {
     loadLookupTable();
     printLookupTable();
     
-    //Dipole * base = new Dipole(0.,0.,1.,0.,0.);
-    Dipole * base = new Dipole(1.,0.);
+    Dipole * base = new Dipole(0.,0.,1.,0.,0.);
     
-    //Double_t px,py,vx,vy;
+    Double_t px,py,vx,vy;
     UInt_t ancestor;
     Double_t size, y;
     
@@ -407,29 +389,29 @@ void build() {
         cout << 100.*n/N << "%" << endl;
         
         TTree * t = new TTree(TString::Format("t%d",n),"evolution");
-        /*t->Branch("px",&px,"px/D");
+        t->Branch("px",&px,"px/D");
         t->Branch("py",&py,"py/D");
         t->Branch("vx",&vx,"vx/D");
-        t->Branch("vy",&vy,"vy/D");*/
+        t->Branch("vy",&vy,"vy/D");
         t->Branch("size",&size,"size/D");
         t->Branch("rapidity",&y,"rapidity/D");
         t->Branch("ancestor",&ancestor,"ancestor/i");
         
-        /*px = base->px;
+        px = base->px;
         py = base->py;
         vx = base->vx;
-        vy = base->vy;*/
+        vy = base->vy;
         y = base->y;
-        size = base->size;
+        size = base->size();
         ancestor = 0;
         
         t->Fill();
         
         TTree * l = new TTree(TString::Format("l%d",n), "leaves");
-        /*l->Branch("px",&px,"px/D");
+        l->Branch("px",&px,"px/D");
         l->Branch("py",&py,"py/D");
         l->Branch("vx",&vx,"vx/D");
-        l->Branch("vy",&vy,"vy/D");*/
+        l->Branch("vy",&vy,"vy/D");
         l->Branch("size",&size,"size/D");
         l->Branch("rapidity",&y,"rapidity/D");
         l->Branch("ancestor",&ancestor,"ancestor/i");
@@ -450,8 +432,7 @@ void build() {
                 
                 t->GetEvent(i);
                 
-                //p = new Dipole(px,py,vx,vy,y);
-                p = new Dipole(size,y);
+                p = new Dipole(px,py,vx,vy,y);
                 d = p->split();
                 
                 if (d->y > y_max) {
@@ -460,22 +441,22 @@ void build() {
                     
                 } else {
                     
-                    /*px = d->px;
+                    px = d->px;
                     py = d->py;
                     vx = d->vx;
                     vy = d->vy;
-                    y = d->y;*/
-                    size = d->size;
+                    y = d->y;
+                    size = d->size();
                     ancestor = i;
                     t->Fill();
                     
                     d->invertWithRespectTo(p);
                     
-                    /*px = d->px;
+                    px = d->px;
                     py = d->py;
                     vx = d->vx;
-                    vy = d->vy;*/
-                    size = d->size;
+                    vy = d->vy;
+                    size = d->size();
                     t->Fill();
                     
                 }

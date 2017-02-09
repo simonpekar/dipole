@@ -65,7 +65,7 @@ void analyse() {
     
     TH1 * h_rap = new TH1D("h_rap", TString::Format("Rapidity of ancestors (N = %d, y_max = %.12g, delta = %.12g, k = %d, m = %d)", N, y_max, delta, k_leaves, m_factor), 50, 0, y_max);
     TH1 * h_anc = new TH1D("h_anc", TString::Format("Size of ancestors (N = %d, y_max = %.12g, delta = %.12g, k = %d, m = %d)", N, y_max, delta, k_leaves, m_factor), 50, -1, 4);
-    TH1 * h_fluct = new TH1I("h_fluct", TString::Format("Fluctuations of multiplicity (N = %d, y_max = %.12g, delta = %.12g)", N, y_max, delta), (int)1./5.*sqrt(N), 0, (int)1/5*n_bar->Eval(delta));
+    TH1 * h_fluct = new TH1I("h_fluct", TString::Format("Fluctuations of multiplicity (N = %d, y_max = %.12g, delta = %.12g)", N, y_max, delta), (int)1./6.*sqrt(N), 0, (int)1/6*n_bar->Eval(delta));
     
     BinLogX(h_anc);
     
