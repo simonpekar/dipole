@@ -52,6 +52,7 @@ void analyse() {
     TF1 * P_n = new TF1("P_n", "1./x * [3]*[2]/([0]*[0]) * exp(-log(x)*log(x)/(4*[1]))");
     TF1 * n_bar = new TF1("n_bar", "1./x * exp([0]*4.*log(2.)) * exp(-log(x*x)*log(x*x)/([0]*56.*[1])) * 1./sqrt([0]*14.*TMath::Pi()*[1])");
     TF1 * P_n_IR = new TF1("P_n_IR","[2]/([0]*[1])*exp(-x/([0]*[1]))");
+    TF1 * P_n_test = new TF1("P_n_test","[2]/([0]*[1])*exp(-x/([0]*[1]))*exp(x*x/([1]*[1]*[3]))");
     
     n_bar->FixParameter(0, y_max);
     n_bar->FixParameter(1, zeta_3);
@@ -91,9 +92,9 @@ void analyse() {
             break;
     }
     
-    for (UInt_t n = 0; n < N; ++n) {
+    for (UInt_t n = 0; n < f->GetNkeys(); ++n) {
         
-        printf("%.12g %%\n",100.*n/N);
+      printf("%.12g %%\n",100.*n/f->GetNkeys());
         
         TTree * l;
         f->GetObject(TString::Format("l%d",n),l);
@@ -220,11 +221,15 @@ void analyse() {
     //c1->cd(4);
     gPad->SetLogy();
     h_fluct->Draw("E1");
-    P_n_IR->SetParameter(0,0.7);
-    P_n_IR->FixParameter(1,h_fluct->GetMean());
-    P_n_IR->SetParameter(2,1.82*N);
+    //P_n_IR->SetParameter(0,0.7);
+    //P_n_IR->FixParameter(1,h_fluct->GetMean());
+    //P_n_IR->SetParameter(2,1.82*N);
+
+    P_n_test->SetParameter(0,0.8);
+    P_n_test->FixParameter(1,h_fluct->GetMean());
+    P_n_test->SetParameter(3,10.);
     gStyle->SetOptFit(1011);
-    h_fluct->Fit("P_n_IR", "", "", h_fluct->GetMean(), 4*h_fluct->GetMean());
+    h_fluct->Fit("P_n_test", "", "", h_fluct->GetMean(), 5*h_fluct->GetMean());
     //h_fluct->Fit("P_n", "", "", n_bar->Eval(delta), 10*n_bar->Eval(delta));
     
     

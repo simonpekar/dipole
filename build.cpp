@@ -138,6 +138,12 @@ Dipole::Dipole(Double_t px, Double_t py, Double_t vx, Double_t vy, Double_t y) {
     this->y = y;
 }
 
+Double_t Dipole::size() {
+  
+  return sqrt(vx*vx+vy*vy);
+  
+}
+
 Dipole * Dipole::split() {
     
     r->FixParameter(0,delta/this->size());
